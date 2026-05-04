@@ -1,0 +1,21 @@
+import subprocess
+import sys
+
+def update_dependencies():
+    packages = [
+        "pytz",
+        "selenium",
+        "webdriver-manager",
+        "google-auth",
+        "google-auth-oauthlib",
+        "google-api-python-client"
+    ]
+    print("Checking and updating dependencies...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "--break-system-packages"] + packages)
+        print("Dependencies updated successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to update dependencies: {e}")
+
+if __name__ == "__main__":
+    update_dependencies()
