@@ -1,11 +1,9 @@
 import update_dependencies
 update_dependencies.update_dependencies()
 
-import datetime
-import os.path
-import pytz # Belangrijk voor tijdzones
 import parser
 import time
+from calendar_integration import get_calendar_events, check_conflict, LOCAL_TZ
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -14,87 +12,9 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
+from config import DATUMPRIKKER_URL, NAAM, EMAIL
 
-# --- CONFIGURATIE ---
-DATUMPRIKKER_URL = "https://datumprikker.nl/YOUR_LINK_HERE"
-NAAM = "YOUR_NAME_HERE"
-EMAIL = "YOUR_EMAIL_HERE"
-SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
-LOCAL_TZ = pytz.timezone("Europe/Amsterdam")
-EXCLUDED_CALENDARS = ['Verjaardagen', 'Feestdagen in Nederland', 'Tasks']
 
-def get_calendar_events():
-    creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
-
-    service = build('calendar', 'v3', credentials=creds)
-    # Haal events op van nu tot 2 maanden vooruit
-    # Gebruik timezone-aware now in plaats van utcnow() (deprecated)
-    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    
-    all_events = []
-    
-    # Haal alle kalenders op
-    calendars_result = service.calendarList().list().execute()
-    calendars = calendars_result.get('items', [])
-    
-    for calendar in calendars:
-        cal_name = calendar.get('summary', '')
-        if cal_name in EXCLUDED_CALENDARS:
-            continue
-            
-        try:
-            events_result = service.events().list(
-                calendarId=calendar['id'], 
-                timeMin=now,
-                singleEvents=True, 
-                orderBy='startTime'
-            ).execute()
-            all_events.extend(events_result.get('items', []))
-        except Exception as e:
-            print(f"Kon events voor kalender '{cal_name}' niet ophalen: {e}")
-
-    return all_events
-
-def check_conflict(prikker_start, prikker_end, events):
-    """
-    Vergelijkt het tijdslot van Datumprikker met je Google Calendar events.
-    """
-    for event in events:
-        # Negeer evenementen die de hele dag duren (deze hebben een 'date' veld i.p.v. 'dateTime')
-        if 'date' in event['start']:
-            continue
-
-        # Google geeft 'date' voor hele dag of 'dateTime' voor specifieke tijden
-        ev_start_str = event['start'].get('dateTime', event['start'].get('date'))
-        ev_end_str = event['end'].get('dateTime', event['end'].get('date'))
-
-        # Parse ISO naar datetime objecten
-        ev_start = datetime.datetime.fromisoformat(ev_start_str.replace('Z', '+00:00'))
-        if ev_start.tzinfo is None:
-            ev_start = LOCAL_TZ.localize(ev_start)
-            
-        ev_end = datetime.datetime.fromisoformat(ev_end_str.replace('Z', '+00:00'))
-        if ev_end.tzinfo is None:
-            ev_end = LOCAL_TZ.localize(ev_end)
-
-        # Check overlap: (StartA < EndB) AND (EndA > StartB)
-        if (prikker_start < ev_end) and (prikker_end > ev_start):
-            return True # Er is een conflict
-    return False
 
 def run_agent():
     events = get_calendar_events()
