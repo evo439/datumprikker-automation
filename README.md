@@ -1,4 +1,4 @@
-# Datumprikker Automator
+# Datumprikker Autofiller
 
 This script automatically fills in a [Datumprikker](https://datumprikker.nl/) poll based on your Google Calendar availability. It uses Selenium to navigate the web page and the Google Calendar API to check for overlapping events.
 
